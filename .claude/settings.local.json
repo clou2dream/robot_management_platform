@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(file:*)",
+      "Bash(python3:*)",
+      "Bash(apt list:*)"
+    ]
+  }
+}

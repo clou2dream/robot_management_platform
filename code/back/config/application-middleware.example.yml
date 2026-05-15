@@ -1,0 +1,27 @@
+# Copy this file to application-middleware.yml and fill remote middleware values.
+# application-middleware.yml is intentionally ignored because it contains secrets.
+
+spring:
+  datasource:
+    url: jdbc:postgresql://<POSTGRES_HOST>:5432/robot_management
+    username: <POSTGRES_USERNAME>
+    password: <POSTGRES_PASSWORD>
+    driver-class-name: org.postgresql.Driver
+  data:
+    redis:
+      host: <REDIS_HOST>
+      port: 6379
+      password: <REDIS_PASSWORD>
+      database: 0
+
+app:
+  middleware:
+    emqx:
+      mqtt:
+        host: <EMQX_MQTT_HOST>
+        port: 1883
+        username: <EMQX_USERNAME>
+        password: <EMQX_PASSWORD>
+        ssl-enabled: false
+      dashboard:
+        url: http://<EMQX_DASHBOARD_HOST>:18083

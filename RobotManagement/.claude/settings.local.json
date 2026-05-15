@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.meilirobots.com)",
+      "WebFetch(domain:cn.seer-group.com)",
+      "WebFetch(domain:goat-robotics.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:www.hivemq.com)",
+      "WebFetch(domain:bluebotics.com)",
+      "WebFetch(domain:www.xfyun.cn)",
+      "WebFetch(domain:console.xfyun.cn)"
+    ]
+  }
+}
