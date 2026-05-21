@@ -4,53 +4,64 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.robotmanagement.common.exception.BusinessException;
 import com.robotmanagement.common.security.CurrentUser;
 import com.robotmanagement.common.security.SecurityUtils;
+import com.robotmanagement.operator.entity.OperatorEntity;
 import com.robotmanagement.operator.entity.OperatorRobotAccessEntity;
+import com.robotmanagement.operator.mapper.OperatorMapper;
 import com.robotmanagement.operator.mapper.OperatorRobotAccessMapper;
-import com.robotmanagement.robot.dto.CreateDemoTelemetryRequest;
+import com.robotmanagement.realtime.RealtimeMessagePublisher;
 import com.robotmanagement.robot.dto.RobotConnectionResponse;
+import com.robotmanagement.robot.dto.RobotFactsheetResponse;
 import com.robotmanagement.robot.dto.RobotPositionResponse;
 import com.robotmanagement.robot.dto.RobotRealtimeResponse;
 import com.robotmanagement.robot.dto.RobotResponse;
 import com.robotmanagement.robot.dto.RobotStateResponse;
 import com.robotmanagement.robot.entity.RobotConnectionEntity;
+import com.robotmanagement.robot.entity.RobotFactsheetEntity;
 import com.robotmanagement.robot.entity.RobotEntity;
 import com.robotmanagement.robot.entity.RobotPositionEntity;
 import com.robotmanagement.robot.entity.RobotStateEntity;
 import com.robotmanagement.robot.mapper.RobotConnectionMapper;
+import com.robotmanagement.robot.mapper.RobotFactsheetMapper;
 import com.robotmanagement.robot.mapper.RobotMapper;
 import com.robotmanagement.robot.mapper.RobotPositionMapper;
 import com.robotmanagement.robot.mapper.RobotStateMapper;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
-import java.time.OffsetDateTime;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class RobotTelemetryService {
 
     private final RobotMapper robotMapper;
+    private final OperatorMapper operatorMapper;
     private final OperatorRobotAccessMapper accessMapper;
     private final RobotConnectionMapper connectionMapper;
     private final RobotStateMapper stateMapper;
     private final RobotPositionMapper positionMapper;
+    private final RobotFactsheetMapper factsheetMapper;
+    private final StringRedisTemplate stringRedisTemplate;
 
     public RobotTelemetryService(
         RobotMapper robotMapper,
+        OperatorMapper operatorMapper,
         OperatorRobotAccessMapper accessMapper,
         RobotConnectionMapper connectionMapper,
         RobotStateMapper stateMapper,
-        RobotPositionMapper positionMapper
+        RobotPositionMapper positionMapper,
+        RobotFactsheetMapper factsheetMapper,
+        StringRedisTemplate stringRedisTemplate
     ) {
         this.robotMapper = robotMapper;
+        this.operatorMapper = operatorMapper;
         this.accessMapper = accessMapper;
         this.connectionMapper = connectionMapper;
         this.stateMapper = stateMapper;
         this.positionMapper = positionMapper;
+        this.factsheetMapper = factsheetMapper;
+        this.stringRedisTemplate = stringRedisTemplate;
     }
 
     public RobotRealtimeResponse getRealtime(UUID robotId) {
@@ -59,13 +70,14 @@ public class RobotTelemetryService {
         RobotConnectionEntity connection = latestConnection(currentUser.tenantId(), robotId);
         RobotStateEntity state = latestState(currentUser.tenantId(), robotId);
         RobotPositionEntity position = latestPosition(currentUser.tenantId(), robotId);
+        boolean includeDebugPayload = hasDebugPermission(currentUser);
 
-        RobotConnectionResponse connectionResponse = RobotConnectionResponse.from(connection);
-        boolean online = connectionResponse != null && connectionResponse.online();
+        boolean online = isOnline(robotId);
+        RobotConnectionResponse connectionResponse = RobotConnectionResponse.from(connection, online);
         return new RobotRealtimeResponse(
             RobotResponse.from(robot, online),
             connectionResponse,
-            RobotStateResponse.from(state),
+            RobotStateResponse.from(state, includeDebugPayload),
             RobotPositionResponse.from(position)
         );
     }
@@ -73,13 +85,13 @@ public class RobotTelemetryService {
     public RobotConnectionResponse getConnection(UUID robotId) {
         CurrentUser currentUser = SecurityUtils.currentUser();
         loadAccessibleRobot(robotId, currentUser);
-        return RobotConnectionResponse.from(latestConnection(currentUser.tenantId(), robotId));
+        return RobotConnectionResponse.from(latestConnection(currentUser.tenantId(), robotId), isOnline(robotId));
     }
 
     public RobotStateResponse getState(UUID robotId) {
         CurrentUser currentUser = SecurityUtils.currentUser();
         loadAccessibleRobot(robotId, currentUser);
-        return RobotStateResponse.from(latestState(currentUser.tenantId(), robotId));
+        return RobotStateResponse.from(latestState(currentUser.tenantId(), robotId), hasDebugPermission(currentUser));
     }
 
     public RobotPositionResponse getPosition(UUID robotId) {
@@ -88,55 +100,30 @@ public class RobotTelemetryService {
         return RobotPositionResponse.from(latestPosition(currentUser.tenantId(), robotId));
     }
 
-    @Transactional
-    public RobotRealtimeResponse createDemoTelemetry(UUID robotId, CreateDemoTelemetryRequest request) {
+    public List<RobotPositionResponse> getTrajectory(UUID robotId, int limit) {
         CurrentUser currentUser = SecurityUtils.currentUser();
-        if (currentUser.isViewer()) {
-            throw BusinessException.forbidden("viewer 不能生成演示状态");
-        }
+        loadAccessibleRobot(robotId, currentUser);
+        int safeLimit = sanitizeTrajectoryLimit(limit);
 
-        RobotEntity robot = loadAccessibleRobot(robotId, currentUser);
-        OffsetDateTime now = OffsetDateTime.now();
-        double x = defaultDouble(request == null ? null : request.x(), random(10, 90));
-        double y = defaultDouble(request == null ? null : request.y(), random(10, 90));
-        double theta = defaultDouble(request == null ? null : request.theta(), random(-3.14, 3.14));
-        String mapId = defaultString(request == null ? null : request.mapId(), "demo-map");
-        String operatingMode = defaultString(request == null ? null : request.operatingMode(), "AUTO");
-        String orderId = defaultString(request == null ? null : request.orderId(), "order-demo");
-        short batterySoc = normalizeBattery(request == null ? null : request.batterySoc());
+        return positionMapper.selectList(
+                new LambdaQueryWrapper<RobotPositionEntity>()
+                    .eq(RobotPositionEntity::getTenantId, currentUser.tenantId())
+                    .eq(RobotPositionEntity::getRobotId, robotId)
+                    .isNotNull(RobotPositionEntity::getPosX)
+                    .isNotNull(RobotPositionEntity::getPosY)
+                    .orderByDesc(RobotPositionEntity::getTime)
+                    .last("limit " + safeLimit)
+            )
+            .stream()
+            .map(RobotPositionResponse::from)
+            .sorted(Comparator.comparing(RobotPositionResponse::time, Comparator.nullsLast(Comparator.naturalOrder())))
+            .toList();
+    }
 
-        RobotConnectionEntity connection = new RobotConnectionEntity();
-        connection.setTime(now);
-        connection.setTenantId(currentUser.tenantId());
-        connection.setRobotId(robotId);
-        connection.setConnectionState(defaultString(request == null ? null : request.connectionState(), "online"));
-        connectionMapper.insert(connection);
-
-        RobotStateEntity state = new RobotStateEntity();
-        state.setTime(now);
-        state.setTenantId(currentUser.tenantId());
-        state.setRobotId(robotId);
-        state.setPosX(x);
-        state.setPosY(y);
-        state.setPosTheta(theta);
-        state.setMapId(mapId);
-        state.setBatterySoc(batterySoc);
-        state.setOperatingMode(operatingMode);
-        state.setOrderId(orderId);
-        state.setRawPayload(buildDemoPayload(robot, x, y, theta, mapId, batterySoc, operatingMode, orderId, now));
-        stateMapper.insert(state);
-
-        RobotPositionEntity position = new RobotPositionEntity();
-        position.setTime(now);
-        position.setTenantId(currentUser.tenantId());
-        position.setRobotId(robotId);
-        position.setPosX(x);
-        position.setPosY(y);
-        position.setPosTheta(theta);
-        position.setMapId(mapId);
-        positionMapper.insert(position);
-
-        return getRealtime(robotId);
+    public RobotFactsheetResponse getFactsheet(UUID robotId) {
+        CurrentUser currentUser = SecurityUtils.currentUser();
+        loadAccessibleRobot(robotId, currentUser);
+        return RobotFactsheetResponse.from(latestFactsheet(currentUser.tenantId(), robotId), hasDebugPermission(currentUser));
     }
 
     private RobotConnectionEntity latestConnection(UUID tenantId, UUID robotId) {
@@ -169,6 +156,35 @@ public class RobotTelemetryService {
         );
     }
 
+    private RobotFactsheetEntity latestFactsheet(UUID tenantId, UUID robotId) {
+        RobotFactsheetEntity factsheet = factsheetMapper.selectById(robotId);
+        if (factsheet == null || !tenantId.equals(factsheet.getTenantId())) {
+            return null;
+        }
+        return factsheet;
+    }
+
+    /**
+     * Uses the same Redis online marker as the robot list so all frontend views agree on online state.
+     */
+    private boolean isOnline(UUID robotId) {
+        return Boolean.TRUE.equals(stringRedisTemplate.hasKey("robot:" + robotId + ":online"));
+    }
+
+    private boolean hasDebugPermission(CurrentUser currentUser) {
+        OperatorEntity operator = operatorMapper.selectById(currentUser.operatorId());
+        return operator != null
+            && currentUser.tenantId().equals(operator.getTenantId())
+            && Boolean.TRUE.equals(operator.getDebugPermission());
+    }
+
+    private int sanitizeTrajectoryLimit(int limit) {
+        if (limit <= 0) {
+            return 240;
+        }
+        return Math.min(limit, 2000);
+    }
+
     private RobotEntity loadAccessibleRobot(UUID robotId, CurrentUser currentUser) {
         RobotEntity robot = robotMapper.selectById(robotId);
         if (robot == null || !currentUser.tenantId().equals(robot.getTenantId())) {
@@ -189,50 +205,4 @@ public class RobotTelemetryService {
         return robot;
     }
 
-    private Map<String, Object> buildDemoPayload(
-        RobotEntity robot,
-        double x,
-        double y,
-        double theta,
-        String mapId,
-        short batterySoc,
-        String operatingMode,
-        String orderId,
-        OffsetDateTime now
-    ) {
-        Map<String, Object> position = new LinkedHashMap<>();
-        position.put("x", x);
-        position.put("y", y);
-        position.put("theta", theta);
-        position.put("mapId", mapId);
-
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("source", "demo");
-        payload.put("timestamp", now.toString());
-        payload.put("serialNumber", robot.getSerialNumber());
-        payload.put("batterySoc", batterySoc);
-        payload.put("operatingMode", operatingMode);
-        payload.put("orderId", orderId);
-        payload.put("position", position);
-        return payload;
-    }
-
-    private short normalizeBattery(Integer value) {
-        if (value == null) {
-            return (short) ThreadLocalRandom.current().nextInt(45, 96);
-        }
-        return (short) Math.max(0, Math.min(100, value));
-    }
-
-    private double defaultDouble(Double value, double fallback) {
-        return value == null ? fallback : value;
-    }
-
-    private double random(double min, double max) {
-        return ThreadLocalRandom.current().nextDouble(min, max);
-    }
-
-    private String defaultString(String value, String fallback) {
-        return StringUtils.hasText(value) ? value.trim() : fallback;
-    }
 }

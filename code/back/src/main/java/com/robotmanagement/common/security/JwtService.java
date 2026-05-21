@@ -37,6 +37,7 @@ public class JwtService {
             .claim("username", currentUser.username())
             .claim("role", currentUser.role())
             .claim("tenant_name", currentUser.tenantName())
+            .claim("debug_permission", currentUser.debugPermission())
             .signWith(secretKey)
             .compact();
     }
@@ -55,7 +56,8 @@ public class JwtService {
             UUID.fromString(claims.get("tenant_id", String.class)),
             claims.get("username", String.class),
             claims.get("role", String.class),
-            claims.get("tenant_name", String.class)
+            claims.get("tenant_name", String.class),
+            Boolean.TRUE.equals(claims.get("debug_permission", Boolean.class))
         );
     }
 

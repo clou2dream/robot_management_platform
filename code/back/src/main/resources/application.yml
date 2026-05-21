@@ -11,6 +11,10 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+    connect-retries: 10
+    connect-retries-interval: 3s
   jackson:
     default-property-inclusion: non_null
     time-zone: Asia/Shanghai
@@ -43,3 +47,35 @@ app:
   security:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
     cookie-secure: ${COOKIE_SECURE:false}
+  task:
+    require-factsheet-capabilities: ${TASK_REQUIRE_FACTSHEET_CAPABILITIES:false}
+  robot:
+    online-ttl: ${ROBOT_ONLINE_TTL:PT60S}
+    mqtt-auth-session-ttl: ${ROBOT_MQTT_AUTH_SESSION_TTL:PT30M}
+    state-retention: ${ROBOT_STATE_RETENTION:P7D}
+    visualization-retention: ${ROBOT_VISUALIZATION_RETENTION:PT6H}
+    telemetry-cleanup-delay-ms: ${ROBOT_TELEMETRY_CLEANUP_DELAY_MS:3600000}
+    telemetry-cleanup-initial-delay-ms: ${ROBOT_TELEMETRY_CLEANUP_INITIAL_DELAY_MS:300000}
+    offline-scan-page-size: ${ROBOT_OFFLINE_SCAN_PAGE_SIZE:500}
+    offline-scan-delay-ms: ${ROBOT_OFFLINE_SCAN_DELAY_MS:5000}
+    offline-scan-initial-delay-ms: ${ROBOT_OFFLINE_SCAN_INITIAL_DELAY_MS:10000}
+  mqtt:
+    unauthorized-message-record:
+      enabled: ${MQTT_UNAUTHORIZED_MESSAGE_RECORD_ENABLED:true}
+      max-payload-bytes: ${MQTT_UNAUTHORIZED_MESSAGE_RECORD_MAX_PAYLOAD_BYTES:8192}
+      max-per-minute-per-key: ${MQTT_UNAUTHORIZED_MESSAGE_RECORD_MAX_PER_MINUTE_PER_KEY:10}
+      retention: ${MQTT_UNAUTHORIZED_MESSAGE_RECORD_RETENTION:P7D}
+      cleanup-delay-ms: ${MQTT_UNAUTHORIZED_MESSAGE_RECORD_CLEANUP_DELAY_MS:3600000}
+      cleanup-initial-delay-ms: ${MQTT_UNAUTHORIZED_MESSAGE_RECORD_CLEANUP_INITIAL_DELAY_MS:300000}
+  middleware:
+    emqx:
+      mqtt:
+        enabled: ${MQTT_ENABLED:true}
+        host: ${MQTT_HOST:}
+        port: ${MQTT_PORT:1883}
+        username: ${MQTT_USERNAME:}
+        password: ${MQTT_PASSWORD:}
+        ssl-enabled: ${MQTT_SSL_ENABLED:false}
+        client-id: ${MQTT_CLIENT_ID:robot-management-backend}
+        inbound-topic: ${MQTT_INBOUND_TOPIC:uagv/v3/#}
+        qos: ${MQTT_QOS:0}

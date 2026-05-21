@@ -8,19 +8,13 @@ import com.robotmanagement.common.security.CurrentUser;
 import com.robotmanagement.common.security.SecurityUtils;
 import com.robotmanagement.operator.entity.OperatorRobotAccessEntity;
 import com.robotmanagement.operator.mapper.OperatorRobotAccessMapper;
-import com.robotmanagement.robot.dto.AuthorizedRobotSyncItem;
 import com.robotmanagement.robot.dto.RobotResponse;
-import com.robotmanagement.robot.dto.RobotSyncRequest;
-import com.robotmanagement.robot.dto.RobotSyncResult;
-import com.robotmanagement.robot.dto.RobotSyncStatusResponse;
 import com.robotmanagement.robot.entity.RobotEntity;
 import com.robotmanagement.robot.mapper.RobotMapper;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -88,74 +82,6 @@ public class RobotService {
         return RobotResponse.from(robot, isOnline(robot.getId()));
     }
 
-    public RobotSyncStatusResponse getSyncStatus(UUID robotId) {
-        RobotEntity robot = loadAccessibleRobot(robotId);
-        return new RobotSyncStatusResponse(
-            robot.getId(),
-            robot.getExternalRobotId(),
-            robot.getSerialNumber(),
-            robot.getStatus(),
-            robot.getSyncedAt()
-        );
-    }
-
-    @Transactional
-    public RobotSyncResult syncRobots(RobotSyncRequest request) {
-        CurrentUser currentUser = SecurityUtils.currentUser();
-        if (!currentUser.isAdmin()) {
-            throw BusinessException.forbidden("只有 admin 可以同步机器人");
-        }
-
-        List<AuthorizedRobotSyncItem> sourceItems = request == null || request.robots() == null || request.robots().isEmpty()
-            ? defaultDemoRobots()
-            : request.robots();
-
-        int created = 0;
-        int updated = 0;
-        int skipped = 0;
-        OffsetDateTime now = OffsetDateTime.now();
-
-        for (AuthorizedRobotSyncItem item : sourceItems) {
-            if (!StringUtils.hasText(item.externalRobotId()) || !StringUtils.hasText(item.serialNumber())) {
-                skipped++;
-                continue;
-            }
-
-            RobotEntity existing = robotMapper.selectOne(
-                new LambdaQueryWrapper<RobotEntity>()
-                    .eq(RobotEntity::getTenantId, currentUser.tenantId())
-                    .eq(RobotEntity::getExternalRobotId, item.externalRobotId())
-            );
-
-            if (existing == null) {
-                RobotEntity robot = new RobotEntity();
-                robot.setId(UUID.randomUUID());
-                robot.setTenantId(currentUser.tenantId());
-                robot.setExternalRobotId(item.externalRobotId());
-                robot.setSerialNumber(item.serialNumber());
-                robot.setManufacturer(defaultString(item.manufacturer(), "UNKNOWN"));
-                robot.setSourceAppId(item.sourceAppId());
-                robot.setStatus(normalizeStatus(item.status()));
-                robot.setSyncedAt(now);
-                robot.setCreatedAt(now);
-                robot.setUpdatedAt(now);
-                robotMapper.insert(robot);
-                created++;
-            } else {
-                existing.setSerialNumber(item.serialNumber());
-                existing.setManufacturer(defaultString(item.manufacturer(), existing.getManufacturer()));
-                existing.setSourceAppId(item.sourceAppId());
-                existing.setStatus(normalizeStatus(item.status()));
-                existing.setSyncedAt(now);
-                existing.setUpdatedAt(now);
-                robotMapper.updateById(existing);
-                updated++;
-            }
-        }
-
-        return new RobotSyncResult(created, updated, skipped);
-    }
-
     private RobotEntity loadAccessibleRobot(UUID robotId) {
         CurrentUser currentUser = SecurityUtils.currentUser();
         RobotEntity robot = robotMapper.selectById(robotId);
@@ -183,14 +109,6 @@ public class RobotService {
         return Boolean.TRUE.equals(stringRedisTemplate.hasKey("robot:" + robotId + ":online"));
     }
 
-    private List<AuthorizedRobotSyncItem> defaultDemoRobots() {
-        return List.of(
-            new AuthorizedRobotSyncItem("AUTH-RBT-1001", "SN-001", "JSYS", null, "active"),
-            new AuthorizedRobotSyncItem("AUTH-RBT-1002", "SN-002", "JSYS", null, "active"),
-            new AuthorizedRobotSyncItem("AUTH-RBT-1003", "SN-003", "CHAMELEON", null, "disabled")
-        );
-    }
-
     private String normalizeStatus(String status) {
         if (!StringUtils.hasText(status)) {
             return "active";
@@ -202,7 +120,4 @@ public class RobotService {
         };
     }
 
-    private String defaultString(String value, String fallback) {
-        return StringUtils.hasText(value) ? value : fallback;
-    }
 }

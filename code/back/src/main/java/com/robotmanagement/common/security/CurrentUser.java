@@ -7,7 +7,8 @@ public record CurrentUser(
     UUID tenantId,
     String username,
     String role,
-    String tenantName
+    String tenantName,
+    boolean debugPermission
 ) {
 
     public boolean isAdmin() {

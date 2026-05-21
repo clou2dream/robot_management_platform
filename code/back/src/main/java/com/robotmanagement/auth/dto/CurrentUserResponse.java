@@ -9,7 +9,8 @@ public record CurrentUserResponse(
     UUID tenantId,
     String username,
     String role,
-    String tenantName
+    String tenantName,
+    boolean debugPermission
 ) {
 
     public static CurrentUserResponse from(CurrentUser currentUser) {
@@ -18,7 +19,8 @@ public record CurrentUserResponse(
             currentUser.tenantId(),
             currentUser.username(),
             currentUser.role(),
-            currentUser.tenantName()
+            currentUser.tenantName(),
+            currentUser.debugPermission()
         );
     }
 }

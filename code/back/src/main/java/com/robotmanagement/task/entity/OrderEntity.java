@@ -3,7 +3,7 @@ package com.robotmanagement.task.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
+import com.robotmanagement.common.mybatis.PostgresJsonbTypeHandler;
 
 import java.time.OffsetDateTime;
 import java.util.Map;
@@ -23,7 +23,7 @@ public class OrderEntity {
 
     private String status;
 
-    @com.baomidou.mybatisplus.annotation.TableField(typeHandler = JacksonTypeHandler.class)
+    @com.baomidou.mybatisplus.annotation.TableField(typeHandler = PostgresJsonbTypeHandler.class)
     private Map<String, Object> payload;
 
     private UUID createdBy;

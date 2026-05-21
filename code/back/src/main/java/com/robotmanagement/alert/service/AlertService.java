@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.robotmanagement.alert.dto.AlertResponse;
 import com.robotmanagement.alert.dto.AlertSummaryResponse;
-import com.robotmanagement.alert.dto.CreateDemoAlertRequest;
 import com.robotmanagement.alert.entity.AlertEntity;
 import com.robotmanagement.alert.mapper.AlertMapper;
 import com.robotmanagement.common.api.PageResult;
@@ -13,6 +12,7 @@ import com.robotmanagement.common.security.CurrentUser;
 import com.robotmanagement.common.security.SecurityUtils;
 import com.robotmanagement.operator.entity.OperatorRobotAccessEntity;
 import com.robotmanagement.operator.mapper.OperatorRobotAccessMapper;
+import com.robotmanagement.realtime.RealtimeMessagePublisher;
 import com.robotmanagement.robot.entity.RobotEntity;
 import com.robotmanagement.robot.mapper.RobotMapper;
 import org.springframework.stereotype.Service;
@@ -34,15 +34,18 @@ public class AlertService {
     private final AlertMapper alertMapper;
     private final RobotMapper robotMapper;
     private final OperatorRobotAccessMapper accessMapper;
+    private final RealtimeMessagePublisher realtimeMessagePublisher;
 
     public AlertService(
         AlertMapper alertMapper,
         RobotMapper robotMapper,
-        OperatorRobotAccessMapper accessMapper
+        OperatorRobotAccessMapper accessMapper,
+        RealtimeMessagePublisher realtimeMessagePublisher
     ) {
         this.alertMapper = alertMapper;
         this.robotMapper = robotMapper;
         this.accessMapper = accessMapper;
+        this.realtimeMessagePublisher = realtimeMessagePublisher;
     }
 
     public PageResult<AlertResponse> listAlerts(
@@ -100,44 +103,66 @@ public class AlertService {
         }
 
         RobotEntity robot = loadRobotIfAccessible(alert.getRobotId(), currentUser);
-        return AlertResponse.from(alert, robot);
+        AlertResponse response = AlertResponse.from(alert, robot);
+        realtimeMessagePublisher.alert(response);
+        return response;
     }
 
     @Transactional
-    public AlertResponse createDemoAlert(CreateDemoAlertRequest request) {
-        CurrentUser currentUser = SecurityUtils.currentUser();
-        if (currentUser.isViewer()) {
-            throw BusinessException.forbidden("viewer 不能生成演示告警");
+    public AlertResponse raiseSystemAlert(
+        UUID tenantId,
+        UUID robotId,
+        String level,
+        String errorType,
+        String description,
+        String hint,
+        Map<String, Object> rawError
+    ) {
+        AlertEntity existing = alertMapper.selectOne(
+            new LambdaQueryWrapper<AlertEntity>()
+                .eq(AlertEntity::getTenantId, tenantId)
+                .eq(AlertEntity::getRobotId, robotId)
+                .eq(AlertEntity::getErrorType, errorType)
+                .isNull(AlertEntity::getResolvedAt)
+                .last("limit 1")
+        );
+        RobotEntity robot = robotId == null ? null : robotMapper.selectById(robotId);
+        if (existing != null) {
+            return AlertResponse.from(existing, robot);
         }
-
-        RobotEntity robot = resolveDemoRobot(request == null ? null : request.robotId(), currentUser);
-        OffsetDateTime now = OffsetDateTime.now();
-        String level = normalizeLevel(request == null ? null : request.level());
-        String errorType = defaultString(request == null ? null : request.errorType(), "NAVIGATION_BLOCKED");
 
         AlertEntity alert = new AlertEntity();
         alert.setId(UUID.randomUUID());
-        alert.setTenantId(currentUser.tenantId());
-        alert.setRobotId(robot == null ? null : robot.getId());
-        alert.setTriggeredAt(now);
-        alert.setLevel(level);
+        alert.setTenantId(tenantId);
+        alert.setRobotId(robotId);
+        alert.setTriggeredAt(OffsetDateTime.now());
+        alert.setLevel(normalizeLevel(level));
         alert.setErrorType(errorType);
-        alert.setDescription(defaultString(
-            request == null ? null : request.description(),
-            "演示告警：机器人路径被占用，需要人工确认。"
-        ));
-        alert.setHint(defaultString(
-            request == null ? null : request.hint(),
-            "检查现场通道，确认安全后重新下发任务。"
-        ));
-        alert.setRawError(Map.of(
-            "source", "demo",
-            "generatedBy", currentUser.username(),
-            "generatedAt", now.toString()
-        ));
+        alert.setDescription(description);
+        alert.setHint(hint);
+        alert.setRawError(rawError == null ? Map.of() : rawError);
         alertMapper.insert(alert);
 
-        return AlertResponse.from(alert, robot);
+        AlertResponse response = AlertResponse.from(alert, robot);
+        realtimeMessagePublisher.alert(response);
+        return response;
+    }
+
+    @Transactional
+    public void resolveSystemAlert(UUID tenantId, UUID robotId, String errorType) {
+        List<AlertEntity> alerts = alertMapper.selectList(
+            new LambdaQueryWrapper<AlertEntity>()
+                .eq(AlertEntity::getTenantId, tenantId)
+                .eq(AlertEntity::getRobotId, robotId)
+                .eq(AlertEntity::getErrorType, errorType)
+                .isNull(AlertEntity::getResolvedAt)
+        );
+        OffsetDateTime now = OffsetDateTime.now();
+        for (AlertEntity alert : alerts) {
+            alert.setResolvedAt(now);
+            alertMapper.updateById(alert);
+            realtimeMessagePublisher.alert(AlertResponse.from(alert, robotMapper.selectById(robotId)));
+        }
     }
 
     private LambdaQueryWrapper<AlertEntity> baseAccessibleWrapper(CurrentUser currentUser) {
@@ -232,28 +257,6 @@ public class AlertService {
         return robot;
     }
 
-    private RobotEntity resolveDemoRobot(UUID requestedRobotId, CurrentUser currentUser) {
-        if (requestedRobotId != null) {
-            return loadRobotIfAccessible(requestedRobotId, currentUser);
-        }
-
-        LambdaQueryWrapper<RobotEntity> wrapper = new LambdaQueryWrapper<RobotEntity>()
-            .eq(RobotEntity::getTenantId, currentUser.tenantId())
-            .eq(RobotEntity::getStatus, "active")
-            .orderByDesc(RobotEntity::getSyncedAt)
-            .last("limit 1");
-
-        if (!currentUser.isAdmin()) {
-            List<UUID> allowedRobotIds = listAllowedRobotIds(currentUser);
-            if (allowedRobotIds.isEmpty()) {
-                return null;
-            }
-            wrapper.in(RobotEntity::getId, allowedRobotIds);
-        }
-
-        return robotMapper.selectOne(wrapper);
-    }
-
     private List<UUID> listAllowedRobotIds(CurrentUser currentUser) {
         return accessMapper.selectList(
             new LambdaQueryWrapper<OperatorRobotAccessEntity>()
@@ -295,7 +298,4 @@ public class AlertService {
         };
     }
 
-    private String defaultString(String value, String fallback) {
-        return StringUtils.hasText(value) ? value.trim() : fallback;
-    }
 }

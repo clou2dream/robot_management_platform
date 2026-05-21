@@ -1,18 +1,18 @@
 package com.robotmanagement.robot.controller;
 
-import com.robotmanagement.robot.dto.CreateDemoTelemetryRequest;
 import com.robotmanagement.robot.dto.RobotConnectionResponse;
+import com.robotmanagement.robot.dto.RobotFactsheetResponse;
 import com.robotmanagement.robot.dto.RobotPositionResponse;
 import com.robotmanagement.robot.dto.RobotRealtimeResponse;
 import com.robotmanagement.robot.dto.RobotStateResponse;
 import com.robotmanagement.robot.service.RobotTelemetryService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -45,11 +45,17 @@ public class RobotTelemetryController {
         return telemetryService.getPosition(robotId);
     }
 
-    @PostMapping("/telemetry/demo")
-    public RobotRealtimeResponse createDemoTelemetry(
+    @GetMapping("/trajectory")
+    public List<RobotPositionResponse> getTrajectory(
         @PathVariable UUID robotId,
-        @RequestBody(required = false) CreateDemoTelemetryRequest request
+        @RequestParam(defaultValue = "240") int limit
     ) {
-        return telemetryService.createDemoTelemetry(robotId, request);
+        return telemetryService.getTrajectory(robotId, limit);
     }
+
+    @GetMapping("/factsheet")
+    public RobotFactsheetResponse getFactsheet(@PathVariable UUID robotId) {
+        return telemetryService.getFactsheet(robotId);
+    }
+
 }

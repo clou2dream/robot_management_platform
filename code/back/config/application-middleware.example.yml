@@ -15,13 +15,44 @@ spring:
       database: 0
 
 app:
+  task:
+    # true: validate task/instantAction capabilities against factsheet before publishing.
+    # false: skip factsheet capability validation for integration testing.
+    require-factsheet-capabilities: false
+  robot:
+    # Online TTL refreshed by connection ONLINE, state, and visualization messages.
+    # Use ISO-8601 duration, e.g. PT10S, PT60S, PT5M.
+    online-ttl: PT3600S
+    # MQTT auth session TTL after ONLINE passes identity verification.
+    # Use ISO-8601 duration, e.g. PT30M, PT2H.
+    mqtt-auth-session-ttl: PT30M
+    # Historical telemetry retention. State is low-frequency, visualization can be high-frequency.
+    state-retention: P7D
+    visualization-retention: PT6H
+    telemetry-cleanup-delay-ms: 3600000
+    telemetry-cleanup-initial-delay-ms: 300000
+    offline-scan-page-size: 500
+    offline-scan-delay-ms: 5000
+    offline-scan-initial-delay-ms: 10000
+  mqtt:
+    unauthorized-message-record:
+      enabled: true
+      max-payload-bytes: 8192
+      max-per-minute-per-key: 10
+      retention: P7D
+      cleanup-delay-ms: 3600000
+      cleanup-initial-delay-ms: 300000
   middleware:
     emqx:
       mqtt:
+        enabled: true
         host: <EMQX_MQTT_HOST>
         port: 1883
         username: <EMQX_USERNAME>
         password: <EMQX_PASSWORD>
         ssl-enabled: false
+        client-id: robot-management-backend
+        inbound-topic: uagv/v3/#
+        qos: 0
       dashboard:
         url: http://<EMQX_DASHBOARD_HOST>:18083

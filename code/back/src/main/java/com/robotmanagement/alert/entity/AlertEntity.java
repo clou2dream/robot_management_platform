@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
+import com.robotmanagement.common.mybatis.PostgresJsonbTypeHandler;
 
 import java.time.OffsetDateTime;
 import java.util.Map;
@@ -32,7 +32,7 @@ public class AlertEntity {
 
     private String hint;
 
-    @TableField(typeHandler = JacksonTypeHandler.class)
+    @TableField(typeHandler = PostgresJsonbTypeHandler.class)
     private Map<String, Object> rawError;
 
     public UUID getId() {

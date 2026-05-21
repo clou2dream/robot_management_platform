@@ -129,7 +129,12 @@ public class AuthService {
     }
 
     public CurrentUserResponse me() {
-        return CurrentUserResponse.from(SecurityUtils.currentUser());
+        CurrentUser principal = SecurityUtils.currentUser();
+        OperatorEntity operator = operatorMapper.selectById(principal.operatorId());
+        if (operator == null) {
+            return CurrentUserResponse.from(principal);
+        }
+        return CurrentUserResponse.from(buildCurrentUser(operator));
     }
 
     private CurrentUser buildCurrentUser(OperatorEntity operator) {
@@ -140,7 +145,8 @@ public class AuthService {
             operator.getTenantId(),
             operator.getUsername(),
             operator.getRole(),
-            tenantName
+            tenantName,
+            Boolean.TRUE.equals(operator.getDebugPermission())
         );
     }
 

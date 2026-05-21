@@ -17,6 +17,10 @@ public record RobotStateResponse(
 ) {
 
     public static RobotStateResponse from(RobotStateEntity entity) {
+        return from(entity, true);
+    }
+
+    public static RobotStateResponse from(RobotStateEntity entity, boolean includeRawPayload) {
         if (entity == null) {
             return null;
         }
@@ -26,7 +30,7 @@ public record RobotStateResponse(
             entity.getOperatingMode(),
             entity.getOrderId(),
             RobotPositionResponse.fromState(entity),
-            entity.getRawPayload(),
+            includeRawPayload ? entity.getRawPayload() : null,
             entity.getTime()
         );
     }

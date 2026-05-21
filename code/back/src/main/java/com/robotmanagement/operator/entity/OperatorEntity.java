@@ -21,6 +21,8 @@ public class OperatorEntity {
 
     private String role;
 
+    private Boolean debugPermission;
+
     private Boolean passwordResetRequired;
 
     private OffsetDateTime createdAt;
@@ -63,6 +65,14 @@ public class OperatorEntity {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public Boolean getDebugPermission() {
+        return debugPermission;
+    }
+
+    public void setDebugPermission(Boolean debugPermission) {
+        this.debugPermission = debugPermission;
     }
 
     public Boolean getPasswordResetRequired() {

@@ -16,11 +16,18 @@ public record RobotConnectionResponse(
         if (entity == null) {
             return null;
         }
+        return from(entity, "online".equalsIgnoreCase(entity.getConnectionState()) || "connected".equalsIgnoreCase(entity.getConnectionState()));
+    }
+
+    public static RobotConnectionResponse from(RobotConnectionEntity entity, boolean online) {
+        if (entity == null) {
+            return null;
+        }
         String state = entity.getConnectionState();
         return new RobotConnectionResponse(
             entity.getRobotId(),
             state,
-            "online".equalsIgnoreCase(state) || "connected".equalsIgnoreCase(state),
+            online,
             entity.getTime()
         );
     }

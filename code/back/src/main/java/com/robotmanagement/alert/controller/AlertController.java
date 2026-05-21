@@ -2,14 +2,11 @@ package com.robotmanagement.alert.controller;
 
 import com.robotmanagement.alert.dto.AlertResponse;
 import com.robotmanagement.alert.dto.AlertSummaryResponse;
-import com.robotmanagement.alert.dto.CreateDemoAlertRequest;
 import com.robotmanagement.alert.service.AlertService;
 import com.robotmanagement.common.api.PageResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -53,8 +50,4 @@ public class AlertController {
         return alertService.resolveAlert(alertId);
     }
 
-    @PostMapping("/demo")
-    public AlertResponse createDemoAlert(@RequestBody(required = false) CreateDemoAlertRequest request) {
-        return alertService.createDemoAlert(request);
-    }
 }
