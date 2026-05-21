@@ -244,7 +244,7 @@ export function OperatorsPage() {
       <div className="page-heading">
         <Typography.Title level={2}>人员管理</Typography.Title>
         <Typography.Text type="secondary">
-          管理运营人员账号、角色，以及 operator/viewer 可访问的机器人范围。
+          管理运营人员账号、角色，以及运营员和只读账号可访问的机器人范围。
         </Typography.Text>
       </div>
 

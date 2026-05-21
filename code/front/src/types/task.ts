@@ -5,12 +5,34 @@ export interface TaskNode {
   x: number;
   y: number;
   theta?: number;
+  mapId: string;
+  allowedDeviationXY?: {
+    a: number;
+    b: number;
+    theta?: number;
+  };
+  allowedDeviationTheta?: number;
+  actions?: Record<string, unknown>[];
+}
+
+export interface TaskEdge {
+  edgeId?: string;
+  startNodeId: string;
+  endNodeId: string;
+  maximumSpeed?: number;
+  orientation?: number;
+  orientationType?: "GLOBAL" | "TANGENTIAL";
+  reachOrientationBeforeEntering?: boolean;
+  actions?: Record<string, unknown>[];
 }
 
 export interface CreateOrderRequest {
   orderId?: string;
-  maxSpeed?: number;
+  orderUpdateId?: number;
+  orderDescription?: string;
+  maximumSpeed?: number;
   nodes: TaskNode[];
+  edges?: TaskEdge[];
 }
 
 export interface Order {

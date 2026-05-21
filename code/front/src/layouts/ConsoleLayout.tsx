@@ -1,6 +1,5 @@
 import {
   AlertOutlined,
-  BookOutlined,
   CloudServerOutlined,
   DashboardOutlined,
   DeploymentUnitOutlined,
@@ -8,9 +7,12 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   RobotOutlined,
-  SendOutlined
+  SendOutlined,
+  SettingOutlined,
+  UserOutlined
 } from "@ant-design/icons";
 import {
+  Alert,
   App,
   Avatar,
   Badge,
@@ -22,10 +24,13 @@ import {
   Typography,
   type MenuProps
 } from "antd";
+import { useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { getOpenPlatformCredentialStatus } from "../api/account";
 import { logout } from "../api/auth";
 import { useAuthStore } from "../stores/authStore";
 import { useConsoleStore } from "../stores/consoleStore";
+import type { OpenPlatformCredentialStatus } from "../types/openPlatform";
 
 const { Header, Sider, Content } = Layout;
 
@@ -62,11 +67,6 @@ const menuItems: MenuProps["items"] = [
     key: "/operators",
     icon: <DeploymentUnitOutlined />,
     label: "权限管理"
-  },
-  {
-    key: "/docs/quickstart",
-    icon: <BookOutlined />,
-    label: "来源说明"
   }
 ];
 
@@ -88,6 +88,8 @@ const getOpenKeys = (pathname: string) => {
   return [];
 };
 
+const CREDENTIAL_CHANGED_EVENT = "open-platform-credentials-changed";
+
 export function ConsoleLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -96,6 +98,29 @@ export function ConsoleLayout() {
   const setCollapsed = useConsoleStore((state) => state.setCollapsed);
   const currentUser = useAuthStore((state) => state.currentUser);
   const clearAuth = useAuthStore((state) => state.clearAuth);
+  const [credentialStatus, setCredentialStatus] = useState<OpenPlatformCredentialStatus | null>(null);
+
+  const loadCredentialStatus = useCallback(async () => {
+    if (!currentUser) {
+      setCredentialStatus(null);
+      return;
+    }
+
+    try {
+      setCredentialStatus(await getOpenPlatformCredentialStatus());
+    } catch {
+      setCredentialStatus(null);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    void loadCredentialStatus();
+
+    window.addEventListener(CREDENTIAL_CHANGED_EVENT, loadCredentialStatus);
+    return () => {
+      window.removeEventListener(CREDENTIAL_CHANGED_EVENT, loadCredentialStatus);
+    };
+  }, [loadCredentialStatus]);
 
   const handleLogout = async () => {
     try {
@@ -119,7 +144,7 @@ export function ConsoleLayout() {
               机器人运营管理平台
             </Typography.Text>
             <Typography.Text className="brand-subtitle">
-              VDA5050 / MQTT Console
+              运营控制台
             </Typography.Text>
           </div>
         </div>
@@ -136,6 +161,12 @@ export function ConsoleLayout() {
           <Dropdown
             menu={{
               items: [
+                {
+                  key: "profile",
+                  icon: <UserOutlined />,
+                  label: "用户信息",
+                  onClick: () => navigate("/account/profile")
+                },
                 {
                   key: "logout",
                   icon: <LogoutOutlined />,
@@ -170,9 +201,6 @@ export function ConsoleLayout() {
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
               onClick={() => setCollapsed(!collapsed)}
             />
-            {!collapsed && (
-              <Typography.Text type="secondary">控制台导航</Typography.Text>
-            )}
           </div>
           <Menu
             mode="inline"
@@ -188,6 +216,24 @@ export function ConsoleLayout() {
         </Sider>
 
         <Content className="console-content">
+          {credentialStatus && !credentialStatus.bound && (
+            <Alert
+              className="credential-banner"
+              type="warning"
+              showIcon
+              message="当前账号未绑定开放平台凭证"
+              action={
+                <Button
+                  size="small"
+                  type="primary"
+                  icon={<SettingOutlined />}
+                  onClick={() => navigate("/account/profile")}
+                >
+                  去设置
+                </Button>
+              }
+            />
+          )}
           <Outlet />
         </Content>
       </Layout>

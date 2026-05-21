@@ -13,7 +13,7 @@ export function ComingSoonPage({ title, stage }: ComingSoonPageProps) {
         title={title}
         subTitle={
           <span>
-            当前页面属于 <Tag color="blue">{stage}</Tag> 范围，MVP 阶段先保留导航入口。
+            该模块归入 <Tag color="blue">{stage}</Tag> 范围。
           </span>
         }
       />

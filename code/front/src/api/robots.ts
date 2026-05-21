@@ -1,13 +1,12 @@
 import { http } from "./http";
 import type {
-  CreateDemoTelemetryRequest,
   PageResult,
+  RobotFactsheet,
   Robot,
   RobotConnection,
   RobotPosition,
   RobotRealtime,
-  RobotState,
-  RobotSyncResult
+  RobotState
 } from "../types/robot";
 
 export interface RobotQuery {
@@ -21,11 +20,6 @@ export const getRobots = async (query: RobotQuery = {}) => {
   const response = await http.get<PageResult<Robot>>("/robots", {
     params: query
   });
-  return response.data;
-};
-
-export const syncRobots = async () => {
-  const response = await http.post<RobotSyncResult>("/robots/sync");
   return response.data;
 };
 
@@ -49,10 +43,14 @@ export const getRobotPosition = async (robotId: string) => {
   return response.data;
 };
 
-export const createDemoTelemetry = async (
-  robotId: string,
-  payload: CreateDemoTelemetryRequest = {}
-) => {
-  const response = await http.post<RobotRealtime>(`/robots/${robotId}/telemetry/demo`, payload);
+export const getRobotTrajectory = async (robotId: string, limit = 240) => {
+  const response = await http.get<RobotPosition[]>(`/robots/${robotId}/trajectory`, {
+    params: { limit }
+  });
+  return response.data;
+};
+
+export const getRobotFactsheet = async (robotId: string) => {
+  const response = await http.get<RobotFactsheet>(`/robots/${robotId}/factsheet`);
   return response.data;
 };

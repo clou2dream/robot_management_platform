@@ -20,6 +20,11 @@ export const getRobotOrders = async (robotId: string, query: OrderQuery = {}) =>
   return response.data;
 };
 
+export const getRobotOrder = async (robotId: string, orderRecordId: string) => {
+  const response = await http.get<Order>(`/robots/${robotId}/orders/${orderRecordId}`);
+  return response.data;
+};
+
 export const cancelOrder = async (robotId: string, orderRecordId: string) => {
   const response = await http.put<Order>(`/robots/${robotId}/orders/${orderRecordId}/cancel`);
   return response.data;

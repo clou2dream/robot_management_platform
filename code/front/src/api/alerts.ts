@@ -3,8 +3,7 @@ import type { PageResult } from "../types/robot";
 import type {
   AlertQuery,
   AlertRecord,
-  AlertSummary,
-  CreateDemoAlertRequest
+  AlertSummary
 } from "../types/alert";
 
 export const getAlerts = async (query: AlertQuery = {}) => {
@@ -26,10 +25,5 @@ export const getAlertSummary = async () => {
 
 export const resolveAlert = async (alertId: string) => {
   const response = await http.put<AlertRecord>(`/alerts/${alertId}/resolve`);
-  return response.data;
-};
-
-export const createDemoAlert = async (payload: CreateDemoAlertRequest = {}) => {
-  const response = await http.post<AlertRecord>("/alerts/demo", payload);
   return response.data;
 };

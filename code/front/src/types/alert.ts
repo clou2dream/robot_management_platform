@@ -33,11 +33,3 @@ export interface AlertQuery {
   robotId?: string;
   keyword?: string;
 }
-
-export interface CreateDemoAlertRequest {
-  robotId?: string;
-  level?: AlertLevel;
-  errorType?: string;
-  description?: string;
-  hint?: string;
-}

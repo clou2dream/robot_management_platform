@@ -26,15 +26,14 @@ export function LoginPage() {
   return (
     <main className="login-page">
       <section className="login-hero">
-        <div className="hero-kicker">Robot Open Operations</div>
         <Typography.Title level={1}>机器人运营管理平台</Typography.Title>
         <Typography.Paragraph>
-          面向 VDA5050 与 MQTT 运营场景，聚焦已授权机器人的同步、实时巡检、任务下发和告警运维。
+          查看机器人状态、下发任务并处理告警。
         </Typography.Paragraph>
         <div className="hero-tags">
-          <span>外部授权同步</span>
-          <span>机器人巡检</span>
-          <span>实时 WebSocket</span>
+          <span>机器人接入</span>
+          <span>实时巡检</span>
+          <span>告警处理</span>
           <span>任务可追溯</span>
         </div>
       </section>
@@ -42,9 +41,6 @@ export function LoginPage() {
       <Card className="login-card">
         <Space direction="vertical" size={6} className="login-heading">
           <Typography.Title level={3}>登录控制台</Typography.Title>
-          <Typography.Text type="secondary">
-            Access Token 存内存，Refresh Token 使用 httpOnly Cookie。
-          </Typography.Text>
         </Space>
 
         <Form<LoginRequest>

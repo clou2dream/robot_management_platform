@@ -20,12 +20,6 @@ export interface PageResult<T> {
   size: number;
 }
 
-export interface RobotSyncResult {
-  created: number;
-  updated: number;
-  skipped: number;
-}
-
 export interface RobotConnection {
   robotId: string;
   connectionState: string;
@@ -48,8 +42,15 @@ export interface RobotState {
   operatingMode?: string;
   orderId?: string;
   position?: RobotPosition;
+  agvPosition?: RobotPosition;
   rawPayload?: Record<string, unknown>;
   time?: string;
+}
+
+export interface RobotFactsheet {
+  robotId: string;
+  receivedAt?: string;
+  rawPayload?: Record<string, unknown>;
 }
 
 export interface RobotRealtime {
@@ -57,15 +58,4 @@ export interface RobotRealtime {
   connection?: RobotConnection;
   state?: RobotState;
   position?: RobotPosition;
-}
-
-export interface CreateDemoTelemetryRequest {
-  connectionState?: string;
-  batterySoc?: number;
-  operatingMode?: string;
-  orderId?: string;
-  x?: number;
-  y?: number;
-  theta?: number;
-  mapId?: string;
 }

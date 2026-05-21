@@ -4,6 +4,7 @@ import {
   ReloadOutlined,
   ThunderboltOutlined
 } from "@ant-design/icons";
+import { Client, type IMessage } from "@stomp/stompjs";
 import {
   App,
   Button,
@@ -23,13 +24,13 @@ import {
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useState } from "react";
 import {
-  createDemoAlert,
   getAlert,
   getAlerts,
   getAlertSummary,
   resolveAlert
 } from "../api/alerts";
 import { getRobots } from "../api/robots";
+import { getAccessToken } from "../stores/authStore";
 import type { AlertLevel, AlertRecord, AlertStatus, AlertSummary } from "../types/alert";
 import type { Robot } from "../types/robot";
 
@@ -108,6 +109,49 @@ export function AlertsPage() {
     void loadAlerts();
   }, [loadAlerts]);
 
+  useEffect(() => {
+    const token = getAccessToken();
+    if (!token) {
+      return;
+    }
+
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const client = new Client({
+      brokerURL: `${wsProtocol}//${window.location.host}/ws`,
+      connectHeaders: {
+        Authorization: `Bearer ${token}`
+      },
+      reconnectDelay: 3000,
+      onConnect: () => {
+        client.subscribe("/topic/alerts", (frame) => {
+          const alert = parseAlertFrame(frame);
+          if (!alert) {
+            return;
+          }
+          setAlerts((current) => {
+            const rest = current.filter((item) => item.id !== alert.id);
+            if (status === "open" && alert.status !== "open") {
+              return rest;
+            }
+            if (level && alert.level !== level) {
+              return rest;
+            }
+            if (robotId && alert.robotId !== robotId) {
+              return rest;
+            }
+            return [alert, ...rest].slice(0, pageSize);
+          });
+          void getAlertSummary().then(setSummary).catch(() => undefined);
+        });
+      }
+    });
+
+    client.activate();
+    return () => {
+      void client.deactivate();
+    };
+  }, [level, pageSize, robotId, status]);
+
   const handleResolve = async (record: AlertRecord) => {
     setActionLoading(true);
     try {
@@ -116,21 +160,6 @@ export function AlertsPage() {
       await loadAlerts();
     } catch {
       message.error("告警处理失败，viewer 账号没有处理权限");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleCreateDemo = async () => {
-    setActionLoading(true);
-    try {
-      await createDemoAlert({ robotId, level: "WARNING" });
-      message.success("已生成演示告警");
-      setStatus("open");
-      setPage(1);
-      await loadAlerts();
-    } catch {
-      message.error("演示告警生成失败");
     } finally {
       setActionLoading(false);
     }
@@ -202,7 +231,7 @@ export function AlertsPage() {
       <div className="page-heading">
         <Typography.Title level={2}>告警中心</Typography.Title>
         <Typography.Text type="secondary">
-          汇总机器人运行告警，支持按等级、状态、机器人筛选并完成处理闭环。
+          汇总机器人运行告警，按等级、状态和机器人定位异常并完成处理。
         </Typography.Text>
       </div>
 
@@ -289,9 +318,6 @@ export function AlertsPage() {
           <Button icon={<ReloadOutlined />} onClick={loadAlerts}>
             刷新
           </Button>
-          <Button type="primary" loading={actionLoading} onClick={handleCreateDemo}>
-            生成演示告警
-          </Button>
         </Space>
 
         <Table
@@ -342,12 +368,17 @@ export function AlertsPage() {
                 {detail.hint || "-"}
               </Descriptions.Item>
             </Descriptions>
-            <pre className="json-preview">
-              {JSON.stringify(detail.rawError ?? {}, null, 2)}
-            </pre>
           </Space>
         )}
       </Modal>
     </div>
   );
 }
+
+const parseAlertFrame = (frame: IMessage): AlertRecord | null => {
+  try {
+    return JSON.parse(frame.body) as AlertRecord;
+  } catch {
+    return null;
+  }
+};
